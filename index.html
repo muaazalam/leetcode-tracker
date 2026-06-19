@@ -1,0 +1,507 @@
+<!--
+  12-Week LeetCode Pattern Ladder — interview-readiness tracker
+  Dec-2026 new-grad target: finishes ~Sep 13, synced to the fall application/OA window.
+  Persistence is hybrid:
+    - inside Claude's artifact viewer  -> window.storage  (per-account, stays in this chat)
+    - downloaded / hosted standalone   -> browser localStorage
+    - neither available                -> in-memory for the session
+  The footer shows which backend is active.
+-->
+<style>
+  :root{
+    --bg:#0E1015;
+    --panel:#161922;
+    --panel-2:#1E222D;
+    --line:#2A2F3B;
+    --line-soft:#22262F;
+    --text:#E8EAF1;
+    --muted:#7E8696;
+    --muted-2:#5A6170;
+    --green:#2DD4A7;
+    --green-dim:#173f37;
+    --amber:#F0B33E;
+    --amber-dim:#3a2f13;
+    --hard:#E07A6B;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", "Cascadia Code", "Roboto Mono", Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  .llp-root{
+    background:var(--bg); color:var(--text); font-family:var(--sans);
+    line-height:1.45; padding:24px 20px 56px; max-width:880px; margin:0 auto;
+    -webkit-font-smoothing:antialiased;
+  }
+  .llp-root a{color:inherit;}
+
+  .llp-head{ margin-bottom:18px; }
+  .llp-eyebrow{ font-family:var(--mono); font-size:11px; letter-spacing:.18em; text-transform:uppercase; color:var(--muted-2); margin-bottom:8px; }
+  .llp-title{ font-family:var(--mono); font-weight:600; font-size:25px; letter-spacing:-.01em; margin:0 0 6px; }
+  .llp-sub{ color:var(--muted); font-size:13.5px; margin:0; }
+  .llp-sub b{ color:var(--text); font-weight:600; }
+
+  .llp-instrument{ margin:18px 0 6px; padding:16px 16px 12px; background:var(--panel); border:1px solid var(--line); border-radius:12px; }
+  .llp-instrument-top{ display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin-bottom:14px; }
+  .llp-pct{ font-family:var(--mono); }
+  .llp-pct .big{ font-size:30px; font-weight:600; }
+  .llp-pct .small{ font-size:13px; color:var(--muted); margin-left:6px; }
+  .llp-count{ font-family:var(--mono); font-size:12.5px; color:var(--muted); text-align:right; }
+  .llp-count .done-n{ color:var(--green); }
+  .llp-count .rev-n{ color:var(--amber); }
+
+  .llp-ladder{ display:flex; gap:5px; align-items:flex-end; height:54px; }
+  .llp-rung{ flex:1; height:100%; position:relative; cursor:pointer; background:var(--panel-2); border:1px solid var(--line); border-radius:5px; overflow:hidden; min-width:0; transition:border-color .15s ease; }
+  .llp-rung:hover{ border-color:var(--muted-2); }
+  .llp-rung .fill{ position:absolute; left:0; right:0; bottom:0; height:0%; background:var(--green); opacity:.92; transition:height .35s cubic-bezier(.2,.7,.2,1); }
+  .llp-rung .rnum{ position:absolute; bottom:3px; left:0; right:0; text-align:center; font-family:var(--mono); font-size:9.5px; color:var(--muted); z-index:2; pointer-events:none; mix-blend-mode:luminosity; }
+  .llp-rung.current{ border-color:var(--amber); }
+  .llp-rung.current .fill{ background:var(--amber); }
+  .llp-rung.current .rnum{ color:var(--amber); }
+  .llp-rung.full .fill{ box-shadow:0 0 0 1px var(--green) inset; }
+
+  .llp-ladder-key{ display:flex; gap:16px; margin-top:11px; font-family:var(--mono); font-size:10.5px; color:var(--muted); }
+  .llp-ladder-key span{ display:inline-flex; align-items:center; gap:6px; }
+  .dot{ width:9px; height:9px; border-radius:2px; display:inline-block; }
+  .dot.g{ background:var(--green); } .dot.a{ background:var(--amber); }
+
+  .llp-method{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin:16px 0 24px; }
+  .llp-rule{ background:var(--panel); border:1px solid var(--line-soft); border-radius:9px; padding:11px 12px; }
+  .llp-rule .k{ font-family:var(--mono); font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--amber); margin-bottom:5px; }
+  .llp-rule .v{ font-size:12px; color:var(--muted); }
+  .llp-rule .v b{ color:var(--text); font-weight:600; }
+
+  .llp-week{ border:1px solid var(--line); border-radius:11px; margin-bottom:11px; background:var(--panel); overflow:hidden; }
+  .llp-week.current{ border-color:var(--amber); }
+  .llp-week.review{ border-color:var(--green-dim); }
+  .llp-whead{ display:flex; align-items:center; gap:14px; padding:14px 16px; cursor:pointer; user-select:none; }
+  .llp-wnum{ font-family:var(--mono); font-size:12px; color:var(--muted-2); min-width:34px; letter-spacing:.04em; }
+  .llp-week.current .llp-wnum{ color:var(--amber); }
+  .llp-wmain{ flex:1; min-width:0; }
+  .llp-wpattern{ font-family:var(--mono); font-weight:600; font-size:14.5px; letter-spacing:-.01em; }
+  .llp-wdates{ font-size:11.5px; color:var(--muted); margin-top:2px; }
+  .llp-wprog{ font-family:var(--mono); font-size:12px; color:var(--muted); white-space:nowrap; }
+  .llp-wprog b{ color:var(--green); }
+  .llp-badge{ font-family:var(--mono); font-size:9.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--amber); border:1px solid var(--amber); border-radius:20px; padding:2px 8px; white-space:nowrap; }
+  .llp-badge.rev{ color:var(--green); border-color:var(--green); }
+  .llp-chev{ color:var(--muted-2); font-size:12px; transition:transform .2s ease; font-family:var(--mono); }
+  .llp-week.open .llp-chev{ transform:rotate(90deg); }
+
+  .llp-wbody{ display:none; padding:2px 10px 10px; }
+  .llp-week.open .llp-wbody{ display:block; }
+  .llp-wnote{ font-size:11.5px; color:var(--muted); padding:9px 8px 4px; border-top:1px solid var(--line-soft); font-style:italic; }
+
+  .llp-item{ display:flex; align-items:center; gap:11px; padding:9px 8px; border-top:1px solid var(--line-soft); }
+  .llp-item:first-child{ border-top:none; }
+  .llp-item.stretch{ border-left:2px dashed var(--line); }
+  .llp-item.task{ border-left:2px solid var(--green-dim); }
+
+  .llp-check{ width:19px; height:19px; flex:none; border-radius:5px; border:1.6px solid var(--muted-2); background:transparent; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all .12s ease; padding:0; }
+  .llp-check:hover{ border-color:var(--green); }
+  .llp-check.on{ background:var(--green); border-color:var(--green); }
+  .llp-check.on::after{ content:"✓"; color:#08130f; font-size:13px; font-weight:800; }
+
+  .llp-name{ flex:1; min-width:0; font-size:13.5px; }
+  .llp-item.done .llp-name{ color:var(--muted-2); text-decoration:line-through; text-decoration-color:var(--muted-2); }
+  .llp-tasktag{ font-family:var(--mono); font-size:9px; letter-spacing:.1em; text-transform:uppercase; color:var(--green); border:1px solid var(--green-dim); border-radius:4px; padding:1px 6px; margin-right:9px; }
+  .llp-stretchtag{ font-family:var(--mono); font-size:9px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted-2); border:1px solid var(--line); border-radius:4px; padding:1px 5px; margin-left:8px; }
+
+  .llp-diff{ font-family:var(--mono); font-size:11px; width:18px; text-align:center; flex:none; }
+  .llp-diff.E{ color:var(--green); } .llp-diff.M{ color:var(--amber); } .llp-diff.H{ color:var(--hard); }
+
+  .llp-flag{ flex:none; width:26px; height:26px; border-radius:6px; border:1px solid transparent; background:transparent; color:var(--muted-2); cursor:pointer; font-size:13px; display:flex; align-items:center; justify-content:center; transition:all .12s ease; }
+  .llp-flag:hover{ color:var(--amber); border-color:var(--line); }
+  .llp-flag.on{ color:var(--amber); background:var(--amber-dim); border-color:transparent; }
+  .llp-item.flagged{ background:rgba(240,179,62,.05); }
+
+  .llp-link{ flex:none; font-family:var(--mono); font-size:11px; color:var(--muted-2); text-decoration:none; padding:4px 8px; border-radius:6px; border:1px solid var(--line-soft); transition:all .12s ease; white-space:nowrap; }
+  .llp-link:hover{ color:var(--text); border-color:var(--muted-2); }
+
+  .llp-foot{ margin-top:26px; padding-top:18px; border-top:1px solid var(--line); display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+  .llp-foot-note{ font-size:12px; color:var(--muted); max-width:560px; }
+  .llp-foot-note b{ color:var(--text); font-weight:600; }
+  .llp-reset{ font-family:var(--mono); font-size:11px; color:var(--muted); background:transparent; border:1px solid var(--line); border-radius:7px; padding:7px 12px; cursor:pointer; transition:all .12s ease; white-space:nowrap; }
+  .llp-reset:hover{ color:var(--hard); border-color:var(--hard); }
+  .llp-save{ font-family:var(--mono); font-size:10.5px; color:var(--muted-2); display:block; margin-top:8px; }
+
+  :focus-visible{ outline:2px solid var(--amber); outline-offset:2px; border-radius:4px; }
+
+  @media (max-width:640px){
+    .llp-method{ grid-template-columns:repeat(2,1fr); }
+    .llp-wdates{ display:none; }
+    .llp-title{ font-size:21px; }
+    .llp-link{ display:none; }
+  }
+  @media (prefers-reduced-motion:reduce){ *{ transition:none !important; } }
+</style>
+
+<div class="llp-root">
+  <div class="llp-head">
+    <div class="llp-eyebrow">Interview Prep · Coding Track</div>
+    <h1 class="llp-title">12-Week Pattern Ladder</h1>
+    <p class="llp-sub">Jun 22 → Sep 13 · <b>~1 hr/day</b> · finishes right as the fall new-grad reqs &amp; OAs open. NeetCode-150 spine, sequenced by pattern, with a final review-and-mock week.</p>
+  </div>
+
+  <div class="llp-instrument">
+    <div class="llp-instrument-top">
+      <div class="llp-pct"><span class="big" id="llp-pct">0%</span><span class="small" id="llp-pct-label">just getting started</span></div>
+      <div class="llp-count">
+        <span class="done-n" id="llp-done">0</span> / <span id="llp-total">0</span> done<br>
+        <span class="rev-n" id="llp-rev">0</span> flagged to re-solve
+      </div>
+    </div>
+    <div class="llp-ladder" id="llp-ladder"></div>
+    <div class="llp-ladder-key">
+      <span><i class="dot g"></i>completed</span>
+      <span><i class="dot a"></i>this week</span>
+      <span>tap a rung to jump</span>
+    </div>
+  </div>
+
+  <div class="llp-method">
+    <div class="llp-rule"><div class="k">Daily</div><div class="v"><b>2 problems</b>, patterns over volume</div></div>
+    <div class="llp-rule"><div class="k">Stuck?</div><div class="v">Cap at <b>~30 min</b> → read editorial, flag to re-solve</div></div>
+    <div class="llp-rule"><div class="k">Spaced reps</div><div class="v">Re-solve flagged ones <b>cold, 3–7 days</b> later</div></div>
+    <div class="llp-rule"><div class="k">Stretch tags</div><div class="v">Dashed = <b>optional</b>; skip if behind, core stays intact</div></div>
+  </div>
+
+  <div id="llp-weeks"></div>
+
+  <div class="llp-foot">
+    <div class="llp-foot-note">
+      Coding track only. Three tracks run in parallel into the fall: <b>behavioral / STAR stories</b> (your thesis shortcut-learning find is the headline), <b>resume &amp; project deep-dives</b>, and <b>ML fundamentals + ML system design</b> for MLE-leaning roles.
+      <span class="llp-save" id="llp-save"></span>
+    </div>
+    <button class="llp-reset" id="llp-reset">Reset progress</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  const WEEKS = [
+    { w:1, pattern:"Arrays & Hashing", dates:"Jun 22 – Jun 28", start:"2026-06-22", items:[
+      {n:"Contains Duplicate", d:"E", s:"contains-duplicate"},
+      {n:"Valid Anagram", d:"E", s:"valid-anagram"},
+      {n:"Two Sum", d:"E", s:"two-sum"},
+      {n:"Best Time to Buy and Sell Stock", d:"E", s:"best-time-to-buy-and-sell-stock"},
+      {n:"Group Anagrams", d:"M", s:"group-anagrams"},
+      {n:"Top K Frequent Elements", d:"M", s:"top-k-frequent-elements"},
+      {n:"Product of Array Except Self", d:"M", s:"product-of-array-except-self"},
+      {n:"Valid Sudoku", d:"M", s:"valid-sudoku"},
+      {n:"Longest Consecutive Sequence", d:"M", s:"longest-consecutive-sequence"},
+    ]},
+    { w:2, pattern:"Two Pointers · Sliding Window", dates:"Jun 29 – Jul 5", start:"2026-06-29", items:[
+      {n:"Valid Palindrome", d:"E", s:"valid-palindrome"},
+      {n:"Two Sum II – Sorted Input", d:"M", s:"two-sum-ii-input-array-is-sorted"},
+      {n:"3Sum", d:"M", s:"3sum"},
+      {n:"Container With Most Water", d:"M", s:"container-with-most-water"},
+      {n:"Trapping Rain Water", d:"H", s:"trapping-rain-water", x:true},
+      {n:"Longest Substring Without Repeating Characters", d:"M", s:"longest-substring-without-repeating-characters"},
+      {n:"Longest Repeating Character Replacement", d:"M", s:"longest-repeating-character-replacement"},
+      {n:"Permutation in String", d:"M", s:"permutation-in-string"},
+      {n:"Minimum Window Substring", d:"H", s:"minimum-window-substring", x:true},
+    ]},
+    { w:3, pattern:"Stack · Binary Search", dates:"Jul 6 – Jul 12", start:"2026-07-06", items:[
+      {n:"Valid Parentheses", d:"E", s:"valid-parentheses"},
+      {n:"Min Stack", d:"M", s:"min-stack"},
+      {n:"Daily Temperatures", d:"M", s:"daily-temperatures"},
+      {n:"Car Fleet", d:"M", s:"car-fleet"},
+      {n:"Largest Rectangle in Histogram", d:"H", s:"largest-rectangle-in-histogram", x:true},
+      {n:"Binary Search", d:"E", s:"binary-search"},
+      {n:"Search a 2D Matrix", d:"M", s:"search-a-2d-matrix"},
+      {n:"Koko Eating Bananas", d:"M", s:"koko-eating-bananas"},
+      {n:"Find Minimum in Rotated Sorted Array", d:"M", s:"find-minimum-in-rotated-sorted-array"},
+      {n:"Search in Rotated Sorted Array", d:"M", s:"search-in-rotated-sorted-array"},
+      {n:"Median of Two Sorted Arrays", d:"H", s:"median-of-two-sorted-arrays", x:true},
+    ]},
+    { w:4, pattern:"Linked List", dates:"Jul 13 – Jul 19", start:"2026-07-13", items:[
+      {n:"Reverse Linked List", d:"E", s:"reverse-linked-list"},
+      {n:"Merge Two Sorted Lists", d:"E", s:"merge-two-sorted-lists"},
+      {n:"Linked List Cycle", d:"E", s:"linked-list-cycle"},
+      {n:"Reorder List", d:"M", s:"reorder-list"},
+      {n:"Remove Nth Node From End of List", d:"M", s:"remove-nth-node-from-end-of-list"},
+      {n:"Add Two Numbers", d:"M", s:"add-two-numbers"},
+      {n:"Copy List with Random Pointer", d:"M", s:"copy-list-with-random-pointer"},
+      {n:"LRU Cache", d:"M", s:"lru-cache"},
+      {n:"Merge K Sorted Lists", d:"H", s:"merge-k-sorted-lists", x:true},
+      {n:"Reverse Nodes in k-Group", d:"H", s:"reverse-nodes-in-k-group", x:true},
+    ]},
+    { w:5, pattern:"Trees I — Traversal & Structure", dates:"Jul 20 – Jul 26", start:"2026-07-20", items:[
+      {n:"Invert Binary Tree", d:"E", s:"invert-binary-tree"},
+      {n:"Maximum Depth of Binary Tree", d:"E", s:"maximum-depth-of-binary-tree"},
+      {n:"Diameter of Binary Tree", d:"E", s:"diameter-of-binary-tree"},
+      {n:"Balanced Binary Tree", d:"E", s:"balanced-binary-tree"},
+      {n:"Same Tree", d:"E", s:"same-tree"},
+      {n:"Subtree of Another Tree", d:"E", s:"subtree-of-another-tree"},
+      {n:"Lowest Common Ancestor of a BST", d:"M", s:"lowest-common-ancestor-of-a-binary-search-tree"},
+      {n:"Binary Tree Level Order Traversal", d:"M", s:"binary-tree-level-order-traversal"},
+      {n:"Binary Tree Right Side View", d:"M", s:"binary-tree-right-side-view"},
+      {n:"Count Good Nodes in Binary Tree", d:"M", s:"count-good-nodes-in-binary-tree"},
+      {n:"Validate Binary Search Tree", d:"M", s:"validate-binary-search-tree"},
+    ]},
+    { w:6, pattern:"Trees II · Heap / Priority Queue", dates:"Jul 27 – Aug 2", start:"2026-07-27", items:[
+      {n:"Kth Smallest Element in a BST", d:"M", s:"kth-smallest-element-in-a-bst"},
+      {n:"Construct Tree from Preorder & Inorder", d:"M", s:"construct-binary-tree-from-preorder-and-inorder-traversal"},
+      {n:"Binary Tree Maximum Path Sum", d:"H", s:"binary-tree-maximum-path-sum", x:true},
+      {n:"Serialize and Deserialize Binary Tree", d:"H", s:"serialize-and-deserialize-binary-tree", x:true},
+      {n:"Kth Largest Element in a Stream", d:"E", s:"kth-largest-element-in-a-stream"},
+      {n:"Last Stone Weight", d:"E", s:"last-stone-weight"},
+      {n:"K Closest Points to Origin", d:"M", s:"k-closest-points-to-origin"},
+      {n:"Kth Largest Element in an Array", d:"M", s:"kth-largest-element-in-an-array"},
+      {n:"Task Scheduler", d:"M", s:"task-scheduler"},
+      {n:"Design Twitter", d:"M", s:"design-twitter"},
+      {n:"Find Median from Data Stream", d:"H", s:"find-median-from-data-stream", x:true},
+    ]},
+    { w:7, pattern:"Tries · Backtracking", dates:"Aug 3 – Aug 9", start:"2026-08-03", items:[
+      {n:"Implement Trie (Prefix Tree)", d:"M", s:"implement-trie-prefix-tree"},
+      {n:"Design Add and Search Words", d:"M", s:"design-add-and-search-words-data-structure"},
+      {n:"Word Search II", d:"H", s:"word-search-ii", x:true},
+      {n:"Subsets", d:"M", s:"subsets"},
+      {n:"Combination Sum", d:"M", s:"combination-sum"},
+      {n:"Permutations", d:"M", s:"permutations"},
+      {n:"Subsets II", d:"M", s:"subsets-ii"},
+      {n:"Combination Sum II", d:"M", s:"combination-sum-ii"},
+      {n:"Word Search", d:"M", s:"word-search"},
+      {n:"Palindrome Partitioning", d:"M", s:"palindrome-partitioning"},
+      {n:"Letter Combinations of a Phone Number", d:"M", s:"letter-combinations-of-a-phone-number"},
+      {n:"N-Queens", d:"H", s:"n-queens", x:true},
+    ]},
+    { w:8, pattern:"Graphs I — BFS / DFS / Topo", dates:"Aug 10 – Aug 16", start:"2026-08-10", items:[
+      {n:"Number of Islands", d:"M", s:"number-of-islands"},
+      {n:"Max Area of Island", d:"M", s:"max-area-of-island"},
+      {n:"Clone Graph", d:"M", s:"clone-graph"},
+      {n:"Rotting Oranges", d:"M", s:"rotting-oranges"},
+      {n:"Pacific Atlantic Water Flow", d:"M", s:"pacific-atlantic-water-flow"},
+      {n:"Surrounded Regions", d:"M", s:"surrounded-regions"},
+      {n:"Course Schedule", d:"M", s:"course-schedule"},
+      {n:"Course Schedule II", d:"M", s:"course-schedule-ii"},
+      {n:"Number of Provinces", d:"M", s:"number-of-provinces"},
+      {n:"Redundant Connection", d:"M", s:"redundant-connection"},
+      {n:"Word Ladder", d:"H", s:"word-ladder", x:true},
+    ]},
+    { w:9, pattern:"Graphs II (weighted) · Intervals", dates:"Aug 17 – Aug 23", start:"2026-08-17", note:"The weighted-graph problems (Dijkstra / Bellman-Ford / MST) are lower-frequency for new-grad — treat them as stretch and prioritize intervals if time is tight.", items:[
+      {n:"Min Cost to Connect All Points", d:"M", s:"min-cost-to-connect-all-points", x:true},
+      {n:"Network Delay Time", d:"M", s:"network-delay-time", x:true},
+      {n:"Cheapest Flights Within K Stops", d:"M", s:"cheapest-flights-within-k-stops", x:true},
+      {n:"Reconstruct Itinerary", d:"H", s:"reconstruct-itinerary", x:true},
+      {n:"Swim in Rising Water", d:"H", s:"swim-in-rising-water", x:true},
+      {n:"Insert Interval", d:"M", s:"insert-interval"},
+      {n:"Merge Intervals", d:"M", s:"merge-intervals"},
+      {n:"Non-overlapping Intervals", d:"M", s:"non-overlapping-intervals"},
+      {n:"Minimum Interval to Include Each Query", d:"H", s:"minimum-interval-to-include-each-query", x:true},
+    ]},
+    { w:10, pattern:"1-D Dynamic Programming", dates:"Aug 24 – Aug 30", start:"2026-08-24", note:"The crux. If any week slips, protect this one — DP is high-frequency and the slowest to sink in.", items:[
+      {n:"Climbing Stairs", d:"E", s:"climbing-stairs"},
+      {n:"Min Cost Climbing Stairs", d:"E", s:"min-cost-climbing-stairs"},
+      {n:"House Robber", d:"M", s:"house-robber"},
+      {n:"House Robber II", d:"M", s:"house-robber-ii"},
+      {n:"Longest Palindromic Substring", d:"M", s:"longest-palindromic-substring"},
+      {n:"Palindromic Substrings", d:"M", s:"palindromic-substrings"},
+      {n:"Decode Ways", d:"M", s:"decode-ways"},
+      {n:"Coin Change", d:"M", s:"coin-change"},
+      {n:"Maximum Product Subarray", d:"M", s:"maximum-product-subarray"},
+      {n:"Word Break", d:"M", s:"word-break"},
+      {n:"Longest Increasing Subsequence", d:"M", s:"longest-increasing-subsequence"},
+      {n:"Partition Equal Subset Sum", d:"M", s:"partition-equal-subset-sum"},
+    ]},
+    { w:11, pattern:"2-D DP · Greedy", dates:"Aug 31 – Sep 6", start:"2026-08-31", items:[
+      {n:"Unique Paths", d:"M", s:"unique-paths"},
+      {n:"Longest Common Subsequence", d:"M", s:"longest-common-subsequence"},
+      {n:"Buy & Sell Stock with Cooldown", d:"M", s:"best-time-to-buy-and-sell-stock-with-cooldown"},
+      {n:"Coin Change II", d:"M", s:"coin-change-ii"},
+      {n:"Edit Distance", d:"M", s:"edit-distance"},
+      {n:"Longest Increasing Path in a Matrix", d:"H", s:"longest-increasing-path-in-a-matrix", x:true},
+      {n:"Maximum Subarray", d:"M", s:"maximum-subarray"},
+      {n:"Jump Game", d:"M", s:"jump-game"},
+      {n:"Jump Game II", d:"M", s:"jump-game-ii"},
+      {n:"Gas Station", d:"M", s:"gas-station"},
+      {n:"Hand of Straights", d:"M", s:"hand-of-straights"},
+    ]},
+    { w:12, pattern:"Review + Mock Interviews", dates:"Sep 7 – Sep 13", start:"2026-09-07", review:true, note:"Not a new-problem week. This is where readiness is actually built — re-solve everything you flagged, simulate real interviews under the clock, and rehearse talking out loud.", items:[
+      {n:"Re-solve every ↻-flagged problem, cold (no notes)", task:true, s:"wk12-resolve-flags"},
+      {n:"Mock interview #1 — 45 min, timed (Pramp / interviewing.io)", task:true, s:"wk12-mock-1"},
+      {n:"Mock interview #2 — 45 min, timed", task:true, s:"wk12-mock-2"},
+      {n:"Mock interview #3 — 45 min, timed", task:true, s:"wk12-mock-3"},
+      {n:"Behavioral dry-run: 6–8 STAR stories out loud", task:true, s:"wk12-behavioral"},
+      {n:"Sliding Window Maximum", d:"H", s:"sliding-window-maximum", x:true},
+      {n:"Word Break II", d:"H", s:"word-break-ii", x:true},
+      {n:"Basic Calculator", d:"H", s:"basic-calculator", x:true},
+      {n:"Maximum Frequency Stack", d:"H", s:"maximum-frequency-stack", x:true},
+    ]},
+  ];
+
+  const STORAGE_KEY = "leetcode-ladder-v1"; // kept stable so prior checkmarks carry over
+  const LC = "https://leetcode.com/problems/";
+
+  let state = { done:{}, review:{} };
+  const $ = id => document.getElementById(id);
+  const total = WEEKS.reduce((a,w)=>a+w.items.length,0);
+
+  // ---------- hybrid persistence ----------
+  let backend = "memory";
+  const mem = {};
+  function detectBackend(){
+    try { if(typeof window!=="undefined" && window.storage && typeof window.storage.get==="function"){ backend="claude"; return; } } catch(e){}
+    try { if(typeof window!=="undefined" && window.localStorage){ window.localStorage.getItem("__llp_probe__"); backend="local"; return; } } catch(e){}
+    backend="memory";
+  }
+  function applyParsed(p){ if(!p) return; state.done=p.done||{}; state.review=p.review||{}; }
+  async function load(){
+    if(backend==="claude"){
+      try{ const r= await window.storage.get(STORAGE_KEY,false); if(r&&r.value) applyParsed(JSON.parse(r.value)); }catch(e){}
+    } else if(backend==="local"){
+      try{ const v= window.localStorage.getItem(STORAGE_KEY); if(v) applyParsed(JSON.parse(v)); }catch(e){}
+    } else if(mem[STORAGE_KEY]){ applyParsed(mem[STORAGE_KEY]); }
+  }
+  let saveTimer=null;
+  function save(){
+    const payload = JSON.stringify(state);
+    if(backend==="claude"){
+      clearTimeout(saveTimer);
+      saveTimer=setTimeout(async()=>{ try{ await window.storage.set(STORAGE_KEY,payload,false); flashSave("saved to Claude"); }catch(e){ flashSave("save failed — try again"); } },250);
+    } else if(backend==="local"){
+      try{ window.localStorage.setItem(STORAGE_KEY,payload); flashSave("saved to this browser"); }catch(e){ flashSave("save failed — try again"); }
+    } else { mem[STORAGE_KEY]=JSON.parse(payload); flashSave("session only — won't persist on reload"); }
+  }
+  function flashSave(msg){
+    const el=$("llp-save"); if(!el) return;
+    el.textContent="storage: "+msg;
+    el.style.color = (msg.indexOf("saved")===0) ? "var(--green)" : "var(--muted-2)";
+  }
+
+  function currentWeekNum(){
+    const today=new Date(); today.setHours(0,0,0,0);
+    let cur=WEEKS[0].w;
+    for(const wk of WEEKS){ const start=new Date(wk.start+"T00:00:00"); if(today>=start) cur=wk.w; }
+    return cur;
+  }
+  const CURRENT=currentWeekNum();
+
+  function weekStats(wk){
+    let done=0; wk.items.forEach(it=>{ if(state.done[it.s]) done++; });
+    return { done, total:wk.items.length, pct: wk.items.length? Math.round(done/wk.items.length*100):0 };
+  }
+
+  function buildLadder(){
+    const L=$("llp-ladder"); L.innerHTML="";
+    WEEKS.forEach(wk=>{
+      const rung=document.createElement("div");
+      rung.className="llp-rung"+(wk.w===CURRENT?" current":"");
+      rung.setAttribute("role","button"); rung.setAttribute("tabindex","0");
+      rung.setAttribute("aria-label","Week "+wk.w+" — "+wk.pattern);
+      rung.innerHTML='<div class="fill"></div><div class="rnum">'+wk.w+'</div>';
+      const jump=()=>{ const card=document.querySelector('[data-week="'+wk.w+'"]'); if(card){ if(!card.classList.contains("open")) card.classList.add("open"); card.scrollIntoView({behavior:"smooth",block:"start"}); } };
+      rung.addEventListener("click",jump);
+      rung.addEventListener("keydown",e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); jump(); }});
+      L.appendChild(rung);
+    });
+  }
+
+  function buildWeeks(){
+    const C=$("llp-weeks"); C.innerHTML="";
+    WEEKS.forEach(wk=>{
+      const card=document.createElement("div");
+      card.className="llp-week"+(wk.w===CURRENT?" current open":"")+(wk.review?" review":"");
+      card.setAttribute("data-week",wk.w);
+
+      const head=document.createElement("div");
+      head.className="llp-whead";
+      head.innerHTML=
+        '<div class="llp-wnum">WK '+String(wk.w).padStart(2,"0")+'</div>'+
+        '<div class="llp-wmain"><div class="llp-wpattern">'+wk.pattern+'</div><div class="llp-wdates">'+wk.dates+'</div></div>'+
+        (wk.w===CURRENT?'<div class="llp-badge">This week</div>':(wk.review?'<div class="llp-badge rev">Capstone</div>':''))+
+        '<div class="llp-wprog" data-wprog="'+wk.w+'"></div>'+
+        '<div class="llp-chev">▸</div>';
+      head.addEventListener("click",()=>card.classList.toggle("open"));
+      card.appendChild(head);
+
+      const body=document.createElement("div");
+      body.className="llp-wbody";
+
+      if(wk.note){
+        const note=document.createElement("div");
+        note.className="llp-wnote"; note.textContent=wk.note;
+        body.appendChild(note);
+      }
+
+      wk.items.forEach(it=>{
+        const row=document.createElement("div");
+        row.className="llp-item"+(it.task?" task":"")+(it.x?" stretch":"");
+        row.setAttribute("data-id",it.s);
+
+        const check=document.createElement("button");
+        check.className="llp-check"; check.setAttribute("aria-label","Mark "+it.n+" done");
+        check.addEventListener("click",()=>toggleDone(it.s,wk.w));
+        row.appendChild(check);
+
+        const name=document.createElement("div");
+        name.className="llp-name";
+        name.innerHTML=(it.task?'<span class="llp-tasktag">do</span>':'')+it.n+(it.x?'<span class="llp-stretchtag">stretch</span>':'');
+        row.appendChild(name);
+
+        if(!it.task){
+          const diff=document.createElement("div");
+          diff.className="llp-diff "+it.d; diff.textContent=it.d;
+          row.appendChild(diff);
+
+          const flag=document.createElement("button");
+          flag.className="llp-flag"; flag.innerHTML="&#8635;"; flag.title="Flag to re-solve later";
+          flag.setAttribute("aria-label","Flag "+it.n+" to re-solve");
+          flag.addEventListener("click",()=>toggleReview(it.s,wk.w));
+          row.appendChild(flag);
+
+          const link=document.createElement("a");
+          link.className="llp-link"; link.href=LC+it.s+"/"; link.target="_blank"; link.rel="noopener"; link.textContent="open ↗";
+          row.appendChild(link);
+        }
+        body.appendChild(row);
+      });
+      card.appendChild(body);
+      C.appendChild(card);
+    });
+  }
+
+  function toggleDone(id,w){ if(state.done[id]) delete state.done[id]; else state.done[id]=true; save(); paintRow(id); paintWeek(w); paintTotals(); }
+  function toggleReview(id,w){ if(state.review[id]) delete state.review[id]; else state.review[id]=true; save(); paintRow(id); paintTotals(); }
+
+  function paintRow(id){
+    const row=document.querySelector('.llp-item[data-id="'+id+'"]'); if(!row) return;
+    const on=!!state.done[id], rev=!!state.review[id];
+    row.classList.toggle("done",on); row.classList.toggle("flagged",rev);
+    const c=row.querySelector(".llp-check"); if(c) c.classList.toggle("on",on);
+    const f=row.querySelector(".llp-flag"); if(f) f.classList.toggle("on",rev);
+  }
+  function paintWeek(w){
+    const wk=WEEKS.find(x=>x.w===w); const st=weekStats(wk);
+    const el=document.querySelector('[data-wprog="'+w+'"]'); if(el) el.innerHTML='<b>'+st.done+'</b>/'+st.total;
+    const rung=$("llp-ladder").children[w-1];
+    if(rung){ rung.querySelector(".fill").style.height=st.pct+"%"; rung.classList.toggle("full",st.pct===100); }
+  }
+  function paintTotals(){
+    let done=0,rev=0;
+    WEEKS.forEach(wk=>wk.items.forEach(it=>{ if(state.done[it.s])done++; if(state.review[it.s])rev++; }));
+    const pct=total?Math.round(done/total*100):0;
+    $("llp-pct").textContent=pct+"%"; $("llp-done").textContent=done; $("llp-rev").textContent=rev; $("llp-total").textContent=total;
+    const label=$("llp-pct-label");
+    if(pct===0) label.textContent="just getting started";
+    else if(pct<25) label.textContent="warming up";
+    else if(pct<50) label.textContent="building the base";
+    else if(pct<75) label.textContent="patterns clicking";
+    else if(pct<100) label.textContent="interview-ready territory";
+    else label.textContent="ladder complete — go apply";
+  }
+  function paintAll(){ WEEKS.forEach(wk=>{ wk.items.forEach(it=>paintRow(it.s)); paintWeek(wk.w); }); paintTotals(); }
+
+  $("llp-reset").addEventListener("click",()=>{
+    if(confirm("Clear all checkmarks and review flags? This can't be undone.")){ state={done:{},review:{}}; save(); paintAll(); }
+  });
+
+  // init
+  detectBackend();
+  $("llp-total").textContent=total;
+  buildLadder(); buildWeeks(); paintAll();
+  load().then(()=>{ paintAll(); flashSave(
+    backend==="claude" ? "saved to Claude (stays in this chat)" :
+    backend==="local"  ? "saved to this browser" :
+                         "session only — won't persist on reload"
+  ); });
+})();
+</script>
